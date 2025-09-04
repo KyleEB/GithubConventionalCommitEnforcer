@@ -2,6 +2,8 @@ const core = require("@actions/core");
 const github = require("@actions/github");
 const conventionalCommitsParser = require("conventional-commits-parser");
 
+// bad commit test
+
 async function run() {
   try {
     // Get inputs
