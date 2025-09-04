@@ -11,21 +11,21 @@ inputs:
     required: true
     default: "${{ github.token }}"
 
-    target-branch:
+  target-branch:
     description: "Target branch to protect (default: main)"
     required: false
     default: "main"
-  
+
   allowed-types:
     description: "Comma-separated list of allowed commit types"
     required: false
     default: "feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert"
-  
+
   strict-mode:
     description: "Enable strict mode for more rigorous validation"
     required: false
     default: "false"
-  
+
   comment-on-success:
     description: "Comment on PR even when validation passes"
     required: false
@@ -40,7 +40,7 @@ outputs:
     description: "Total number of commits checked"
 
 runs:
-  using: "node18"
+  using: "node20"
   main: "dist/index.js"
 
 permissions:
