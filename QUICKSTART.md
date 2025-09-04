@@ -41,13 +41,24 @@ jobs:
 
 2. Create a pull request with a non-conventional commit to test the action
 
-## 3. That's It! 🎉
+## 3. Set Up Branch Protection (CRITICAL!)
+
+⚠️ **The action alone will NOT block merges!** You must set up branch protection:
+
+1. Go to **Settings** → **Branches** → **Add rule**
+2. Branch name: `main`
+3. ✅ **"Require status checks to pass before merging"**
+4. ✅ **"Require branches to be up to date before merging"**
+5. Search for: **"Conventional Commits Check"** and select it
+6. Click **Create**
+
+## 4. That's It! 🎉
 
 The action will now:
 
 - ✅ Run on every PR
 - ✅ Validate all commits
-- ✅ Block merges with invalid commits
+- ✅ **Actually block merges** with invalid commits (with branch protection)
 - ✅ Provide helpful feedback
 
 ## Customization Examples

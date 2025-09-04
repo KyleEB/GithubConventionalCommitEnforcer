@@ -1,29 +1,32 @@
 # GitHub Conventional Commit Enforcer
 
-A GitHub Action that enforces conventional commits on merges to protected branches like `main`. This action ensures that all commits merged to your target branch follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+A GitHub Action that enforces conventional commit format on PR titles for squash merges to protected branches like `main`. This action ensures that all commits merged to your target branch follow the [Conventional Commits](https://www.conventionalcommits.org/) specification by validating PR titles.
 
 ## Features
 
-- ✅ Validates all commits in pull requests
-- 🚫 Blocks merges with non-conventional commits
+- ✅ Validates PR titles as conventional commits
+- 🚫 Blocks merges with non-conventional PR titles
 - 💬 Provides helpful feedback on PR comments
 - 🔧 Easy to configure and customize
 - 📝 Supports all conventional commit types
+- 🎯 Simple approach: PR title → commit message
 
 ## How It Works
 
-The action runs on two key events:
+The action uses a **simple and effective approach**:
 
-1. **Push to protected branch** - Validates merge commits being pushed directly to the target branch
-2. **Pull request to protected branch** - Validates commits that would be merged to the target branch
+1. **Developer creates PR** with a title
+2. **Action validates PR title** as a conventional commit
+3. **If PR title is invalid:**
+   - ❌ Action fails and blocks the merge
+   - 💬 Comments on PR with helpful feedback
+4. **If PR title is valid:**
+   - ✅ Action passes and allows the merge
+5. **When merging:**
+   - ✅ Use **"Squash and Merge"** (enforced by branch protection)
+   - ✅ PR title becomes the commit message on main branch
 
-For each event, the action:
-
-1. Fetches relevant commits (merge commits or PR commits)
-2. Validates each commit message against conventional commit format
-3. Fails the check if any commits don't follow the format
-4. Comments on PRs with details about invalid commits
-5. Provides guidance on how to fix the commits
+**Result:** Every commit on main follows conventional commit format! 🎯
 
 ## Conventional Commit Format
 
@@ -53,7 +56,7 @@ type(scope): description
 
 ### Examples
 
-✅ **Valid commits:**
+✅ **Valid PR titles:**
 
 - `feat: add user authentication system`
 - `fix(auth): resolve login validation issue`
@@ -61,12 +64,12 @@ type(scope): description
 - `chore: update dependencies`
 - `test: add unit tests for user service`
 
-❌ **Invalid commits:**
+❌ **Invalid PR titles:**
 
-- `updated the code`
-- `fix stuff`
+- `Add new feature`
+- `Fix stuff`
 - `WIP: working on feature`
-- `commit message`
+- `Update the code`
 
 ## Setup
 
@@ -107,14 +110,20 @@ jobs:
 3. Build the action: `yarn build`
 4. Use the local action in your workflow
 
-### 3. Configure Branch Protection (Optional)
+### 3. Configure Branch Protection (REQUIRED)
 
-To enforce this check on merges, set up branch protection rules:
+⚠️ **IMPORTANT:** Without branch protection, the action will NOT prevent merges with invalid commits!
 
-1. Go to your repository Settings → Branches
-2. Add a rule for your main branch
-3. Check "Require status checks to pass before merging"
-4. Add "Conventional Commits Check" as a required status check
+To actually enforce conventional commits, you MUST set up branch protection:
+
+1. Go to your repository **Settings** → **Branches**
+2. Click **Add rule** for your main branch
+3. ✅ Check **"Require status checks to pass before merging"**
+4. ✅ Check **"Require branches to be up to date before merging"**
+5. Search for and select **"Conventional Commits Check"** as a required status check
+6. Click **Create**
+
+📖 **Detailed Setup Guide:** See [BRANCH_PROTECTION_SETUP.md](BRANCH_PROTECTION_SETUP.md) for complete instructions.
 
 ## Action Inputs
 

@@ -32342,7 +32342,6 @@ module.exports = parseParams
 var __webpack_exports__ = {};
 const core = __nccwpck_require__(7484);
 const github = __nccwpck_require__(3228);
-const { execSync } = __nccwpck_require__(5317);
 const conventionalCommitsParser = __nccwpck_require__(4375);
 
 async function run() {
@@ -32353,7 +32352,6 @@ async function run() {
     const allowedTypes =
       core.getInput("allowed-types") ||
       "feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert";
-    const strictMode = core.getInput("strict-mode") === "true";
     const commentOnSuccess = core.getInput("comment-on-success") === "true";
 
     const allowedTypesArray = allowedTypes
@@ -32364,20 +32362,9 @@ async function run() {
     const octokit = github.getOctokit(token);
     const context = github.context;
 
-    // Check if this is a push to the target branch (merge commit)
-    if (
-      context.eventName === "push" &&
-      context.ref === `refs/heads/${targetBranch}`
-    ) {
-      await validateMergeCommits(
-        octokit,
-        context,
-        allowedTypesArray,
-        commentOnSuccess
-      );
-    } else if (context.eventName === "pull_request") {
-      // For PRs, validate the merge commit that would be created
-      await validatePRMergeCommit(
+    // Only validate PRs targeting the protected branch
+    if (context.eventName === "pull_request") {
+      await validatePRTitle(
         octokit,
         context,
         targetBranch,
@@ -32386,7 +32373,7 @@ async function run() {
       );
     } else {
       core.info(
-        `Event ${context.eventName} not supported. This action only works on pushes to ${targetBranch} and pull requests.`
+        `Event ${context.eventName} not supported. This action only works on pull requests.`
       );
       return;
     }
@@ -32395,98 +32382,7 @@ async function run() {
   }
 }
 
-async function validateMergeCommits(
-  octokit,
-  context,
-  allowedTypes,
-  commentOnSuccess
-) {
-  // Get the commits that were just pushed (not all commits on the branch)
-  const { data: commits } = await octokit.rest.repos.compareCommits({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    base: context.payload.before,
-    head: context.sha,
-  });
-
-  if (!commits.commits || commits.commits.length === 0) {
-    core.info("No commits to validate");
-    core.setOutput("valid", "true");
-    core.setOutput("total-commits", "0");
-    return;
-  }
-
-  let hasInvalidCommits = false;
-  const invalidCommits = [];
-  const validCommits = [];
-
-  // Validate each commit
-  for (const commit of commits.commits) {
-    const message = commit.commit.message;
-    const parsed = conventionalCommitsParser.sync(message);
-
-    // Check if it's a conventional commit
-    if (!parsed.type || !parsed.subject) {
-      hasInvalidCommits = true;
-      invalidCommits.push({
-        sha: commit.sha,
-        message: message.split("\n")[0],
-        fullMessage: message,
-      });
-      core.error(
-        `❌ Invalid commit: ${commit.sha.substring(0, 7)} - ${
-          message.split("\n")[0]
-        }`
-      );
-    } else {
-      // Check if type is allowed
-      if (!allowedTypes.includes(parsed.type)) {
-        hasInvalidCommits = true;
-        invalidCommits.push({
-          sha: commit.sha,
-          message: message.split("\n")[0],
-          fullMessage: message,
-          reason: `Type '${
-            parsed.type
-          }' is not allowed. Allowed types: ${allowedTypes.join(", ")}`,
-        });
-        core.error(
-          `❌ Disallowed type: ${commit.sha.substring(0, 7)} - ${
-            message.split("\n")[0]
-          } (type: ${parsed.type})`
-        );
-      } else {
-        validCommits.push({
-          sha: commit.sha,
-          message: message.split("\n")[0],
-          type: parsed.type,
-          scope: parsed.scope,
-          subject: parsed.subject,
-        });
-        core.info(
-          `✅ Valid commit: ${commit.sha.substring(0, 7)} - ${
-            message.split("\n")[0]
-          }`
-        );
-      }
-    }
-  }
-
-  // Set outputs
-  core.setOutput("valid", (!hasInvalidCommits).toString());
-  core.setOutput("total-commits", commits.commits.length.toString());
-  core.setOutput("invalid-commits", JSON.stringify(invalidCommits));
-
-  if (hasInvalidCommits) {
-    core.setFailed(
-      "Conventional commits validation failed on merge to target branch!"
-    );
-  } else {
-    core.info("✅ All merge commits follow conventional commit format!");
-  }
-}
-
-async function validatePRMergeCommit(
+async function validatePRTitle(
   octokit,
   context,
   targetBranch,
@@ -32508,87 +32404,90 @@ async function validatePRMergeCommit(
     return;
   }
 
-  // Get commits that would be merged
-  const { data: commits } = await octokit.rest.pulls.listCommits({
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: context.issue.number,
-  });
+  const prTitle = pr.title;
+  core.info(`Validating PR title: "${prTitle}"`);
 
-  if (commits.length === 0) {
-    core.info("No commits to validate");
-    core.setOutput("valid", "true");
-    core.setOutput("total-commits", "0");
+  // Parse the PR title as a conventional commit
+  const parsed = conventionalCommitsParser.sync(prTitle);
+
+  // Check if it's a conventional commit
+  if (!parsed.type || !parsed.subject) {
+    core.setOutput("valid", "false");
+    core.setOutput(
+      "invalid-commits",
+      JSON.stringify([
+        {
+          title: prTitle,
+          reason: "PR title does not follow conventional commit format",
+        },
+      ])
+    );
+
+    // Create PR comment
+    const commentBody = createPRTitleFailureComment(prTitle, allowedTypes);
+    await octokit.rest.issues.createComment({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: context.issue.number,
+      body: commentBody,
+    });
+
+    core.setFailed(
+      `PR title "${prTitle}" does not follow conventional commit format!`
+    );
     return;
   }
 
-  let hasInvalidCommits = false;
-  const invalidCommits = [];
-  const validCommits = [];
-
-  // Validate each commit
-  for (const commit of commits) {
-    const message = commit.commit.message;
-    const parsed = conventionalCommitsParser.sync(message);
-
-    // Check if it's a conventional commit
-    if (!parsed.type || !parsed.subject) {
-      hasInvalidCommits = true;
-      invalidCommits.push({
-        sha: commit.sha,
-        message: message.split("\n")[0],
-        fullMessage: message,
-      });
-      core.error(
-        `❌ Invalid commit: ${commit.sha.substring(0, 7)} - ${
-          message.split("\n")[0]
-        }`
-      );
-    } else {
-      // Check if type is allowed
-      if (!allowedTypes.includes(parsed.type)) {
-        hasInvalidCommits = true;
-        invalidCommits.push({
-          sha: commit.sha,
-          message: message.split("\n")[0],
-          fullMessage: message,
+  // Check if type is allowed
+  if (!allowedTypes.includes(parsed.type)) {
+    core.setOutput("valid", "false");
+    core.setOutput(
+      "invalid-commits",
+      JSON.stringify([
+        {
+          title: prTitle,
           reason: `Type '${
             parsed.type
           }' is not allowed. Allowed types: ${allowedTypes.join(", ")}`,
-        });
-        core.error(
-          `❌ Disallowed type: ${commit.sha.substring(0, 7)} - ${
-            message.split("\n")[0]
-          } (type: ${parsed.type})`
-        );
-      } else {
-        validCommits.push({
-          sha: commit.sha,
-          message: message.split("\n")[0],
-          type: parsed.type,
-          scope: parsed.scope,
-          subject: parsed.subject,
-        });
-        core.info(
-          `✅ Valid commit: ${commit.sha.substring(0, 7)} - ${
-            message.split("\n")[0]
-          }`
-        );
-      }
-    }
+        },
+      ])
+    );
+
+    // Create PR comment
+    const commentBody = createPRTitleFailureComment(
+      prTitle,
+      allowedTypes,
+      `Type '${parsed.type}' is not allowed`
+    );
+    await octokit.rest.issues.createComment({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      issue_number: context.issue.number,
+      body: commentBody,
+    });
+
+    core.setFailed(
+      `PR title "${prTitle}" uses disallowed type '${parsed.type}'!`
+    );
+    return;
   }
 
-  // Set outputs
-  core.setOutput("valid", (!hasInvalidCommits).toString());
-  core.setOutput("total-commits", commits.length.toString());
-  core.setOutput("invalid-commits", JSON.stringify(invalidCommits));
+  // PR title is valid
+  core.setOutput("valid", "true");
+  core.setOutput("total-commits", "1");
+  core.info(
+    `✅ PR title follows conventional commit format: ${parsed.type}${
+      parsed.scope ? `(${parsed.scope})` : ""
+    }: ${parsed.subject}`
+  );
 
-  // Create PR comment
-  if (hasInvalidCommits || commentOnSuccess) {
-    const commentBody = hasInvalidCommits
-      ? createFailureComment(invalidCommits, allowedTypes)
-      : createSuccessComment(validCommits, allowedTypes);
-
+  // Create success comment if requested
+  if (commentOnSuccess) {
+    const commentBody = createPRTitleSuccessComment(
+      prTitle,
+      parsed,
+      allowedTypes
+    );
     await octokit.rest.issues.createComment({
       owner: context.repo.owner,
       repo: context.repo.repo,
@@ -32596,68 +32495,54 @@ async function validatePRMergeCommit(
       body: commentBody,
     });
   }
-
-  if (hasInvalidCommits) {
-    core.setFailed(
-      "Conventional commits validation failed! This PR cannot be merged to the protected branch."
-    );
-  } else {
-    core.info("✅ All commits follow conventional commit format!");
-  }
 }
 
-function createFailureComment(invalidCommits, allowedTypes) {
-  const commitList = invalidCommits
-    .map((commit) => {
-      const reason = commit.reason ? ` (${commit.reason})` : "";
-      return `- \`${commit.sha.substring(0, 7)}\`: ${commit.message}${reason}`;
-    })
-    .join("\n");
+function createPRTitleFailureComment(
+  prTitle,
+  allowedTypes,
+  specificReason = null
+) {
+  const reason =
+    specificReason || "PR title does not follow conventional commit format";
 
-  return `## ❌ Conventional Commits Required
+  return `## ❌ Conventional Commit Required
 
-This PR contains commits that don't follow conventional commit format. Please update the following commits:
-
-${commitList}
+Your PR title **"${prTitle}"** ${reason.toLowerCase()}.
 
 ### Conventional Commit Format
-Commits must follow this pattern:
+PR titles must follow this pattern:
 \`\`\`
 type(scope): description
-
-[optional body]
-
-[optional footer]
 \`\`\`
 
 **Allowed Types:** ${allowedTypes.join(", ")}
 
 **Examples:**
-- \`feat: add new user authentication\`
+- \`feat: add user authentication\`
 - \`fix(auth): resolve login validation issue\`
 - \`docs: update API documentation\`
 - \`chore: update dependencies\`
 
-Please amend your commits using \`git commit --amend\` or create new commits with the correct format.`;
+### How to Fix
+1. **Edit your PR title** to follow the conventional commit format
+2. **Use Squash and Merge** when merging (this will use your PR title as the commit message)
+3. **Ensure branch protection** requires "Conventional Commits Check" status check
+
+The PR title will become the commit message when you squash merge! 🎯`;
 }
 
-function createSuccessComment(validCommits, allowedTypes) {
-  const commitSummary = validCommits
-    .map((commit) => {
-      const scope = commit.scope ? `(${commit.scope})` : "";
-      return `- \`${commit.sha.substring(0, 7)}\`: ${commit.type}${scope}: ${
-        commit.subject
-      }`;
-    })
-    .join("\n");
+function createPRTitleSuccessComment(prTitle, parsed, allowedTypes) {
+  const scope = parsed.scope ? `(${parsed.scope})` : "";
 
-  return `## ✅ Conventional Commits Validation Passed
+  return `## ✅ Conventional Commit Validated
 
-All commits in this PR follow the conventional commit format:
+Your PR title **"${prTitle}"** follows the conventional commit format perfectly!
 
-${commitSummary}
+**Parsed as:** \`${parsed.type}${scope}: ${parsed.subject}\`
 
 **Allowed Types:** ${allowedTypes.join(", ")}
+
+When you **Squash and Merge** this PR, the commit message will be: \`${prTitle}\`
 
 Great job maintaining clean commit history! 🎉`;
 }

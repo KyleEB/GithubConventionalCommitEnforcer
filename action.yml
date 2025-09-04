@@ -1,6 +1,6 @@
 name: "Conventional Commits Enforcer"
-description: "Enforces conventional commits on merges to protected branches like main"
-author: "Your Name"
+description: "Enforces conventional commit format on PR titles for squash merges to protected branches"
+author: "Kyle Bowden"
 branding:
   icon: "git-commit"
   color: "blue"
