@@ -26,11 +26,6 @@ inputs:
     required: false
     default: "false"
 
-  comment-on-success:
-    description: "Comment on PR even when validation passes"
-    required: false
-    default: "false"
-
 outputs:
   valid:
     description: "Whether all commits are valid"
@@ -45,5 +40,3 @@ runs:
 
 permissions:
   contents: read
-  pull-requests: write
-  actions: read

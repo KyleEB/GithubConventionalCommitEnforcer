@@ -11,6 +11,8 @@ jobs:
   check-commits:
     runs-on: ubuntu-latest
     name: Conventional Commits Check
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,5 +37,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           target-branch: main
           allowed-types: feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert
-          strict-mode: false
-          comment-on-success: true
