@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "ncc build src/index.js -o dist",
-    "prepare": "npm run build",
+    "prepare": "yarn build",
     "validate-commits": "node scripts/validate-commits.js",
     "test": "jest"
   },

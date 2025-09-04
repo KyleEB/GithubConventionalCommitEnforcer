@@ -13,10 +13,12 @@ A GitHub Action that enforces conventional commits on merges to protected branch
 ## How It Works
 
 The action runs on two key events:
+
 1. **Push to protected branch** - Validates merge commits being pushed directly to the target branch
 2. **Pull request to protected branch** - Validates commits that would be merged to the target branch
 
 For each event, the action:
+
 1. Fetches relevant commits (merge commits or PR commits)
 2. Validates each commit message against conventional commit format
 3. Fails the check if any commits don't follow the format
@@ -101,8 +103,8 @@ jobs:
 ### Option 2: Self-Hosted Action
 
 1. Copy the action files to your repository
-2. Install dependencies: `npm install`
-3. Build the action: `npm run build`
+2. Install dependencies: `yarn install`
+3. Build the action: `yarn build`
 4. Use the local action in your workflow
 
 ### 3. Configure Branch Protection (Optional)
