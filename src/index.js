@@ -1,8 +1,5 @@
-const core = require("@actions/core");
-const github = require("@actions/github");
-const conventionalCommitsParser = require("conventional-commits-parser");
-
-// bad commit test
+import * as core from "@actions/core";
+import * as github from "@actions/github";
 
 async function run() {
   try {
@@ -54,11 +51,15 @@ async function validatePRTitle(octokit, context, targetBranch, allowedTypes) {
   const prTitle = pr.title;
   core.info(`Validating PR title: "${prTitle}"`);
 
-  // Parse the PR title as a conventional commit
-  const parsed = conventionalCommitsParser.sync(prTitle);
+  // Parse the PR title as a conventional commit using regex
+  // Format: type(scope): description or type: description
+  // Handle multi-line titles by taking only the first line
+  const firstLine = prTitle.split("\n")[0];
+  const conventionalCommitRegex =
+    /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?:\s+(.+)$/i;
+  const match = firstLine.match(conventionalCommitRegex);
 
-  // Check if it's a conventional commit
-  if (!parsed.type || !parsed.subject) {
+  if (!match) {
     core.setOutput("valid", "false");
     core.setOutput(
       "invalid-commits",
@@ -76,23 +77,29 @@ async function validatePRTitle(octokit, context, targetBranch, allowedTypes) {
     return;
   }
 
+  // Extract components from regex match
+  const originalType = match[1]; // Keep original case for error messages
+  const type = originalType.toLowerCase(); // Normalize to lowercase for comparison
+  const scope = match[2] ? match[2].slice(1, -1) : null; // Remove parentheses
+  const subject = match[4];
+
   // Check if type is allowed
-  if (!allowedTypes.includes(parsed.type)) {
+  if (!allowedTypes.includes(type)) {
     core.setOutput("valid", "false");
     core.setOutput(
       "invalid-commits",
       JSON.stringify([
         {
           title: prTitle,
-          reason: `Type '${
-            parsed.type
-          }' is not allowed. Allowed types: ${allowedTypes.join(", ")}`,
+          reason: `Type '${originalType}' is not allowed. Allowed types: ${allowedTypes.join(
+            ", "
+          )}`,
         },
       ])
     );
 
     core.setFailed(
-      `PR title "${prTitle}" uses disallowed type '${parsed.type}'!`
+      `PR title "${prTitle}" uses disallowed type '${originalType}'!`
     );
     return;
   }
@@ -101,11 +108,14 @@ async function validatePRTitle(octokit, context, targetBranch, allowedTypes) {
   core.setOutput("valid", "true");
   core.setOutput("total-commits", "1");
   core.info(
-    `✅ PR title follows conventional commit format: ${parsed.type}${
-      parsed.scope ? `(${parsed.scope})` : ""
-    }: ${parsed.subject}`
+    `✅ PR title follows conventional commit format: ${type}${
+      scope ? `(${scope})` : ""
+    }: ${subject}`
   );
 }
+
+// Export the run function for testing
+export { run };
 
 // Run the action
 run();
