@@ -3,6 +3,8 @@ const github = require("@actions/github");
 const { execSync } = require("child_process");
 const conventionalCommitsParser = require("conventional-commits-parser");
 
+// bad commit test
+
 async function run() {
   try {
     // Get inputs
