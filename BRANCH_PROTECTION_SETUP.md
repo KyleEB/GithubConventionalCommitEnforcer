@@ -95,7 +95,7 @@ git push origin test-invalid-pr
    - ❌ Action fails
    - ❌ Status check shows as "failed"
    - ❌ Branch protection blocks the merge
-   - 💬 Action comments on PR with details
+   - ✅ Action provides clear status check feedback
 4. **If PR title is valid:**
    - ✅ Action passes
    - ✅ Status check shows as "passed"

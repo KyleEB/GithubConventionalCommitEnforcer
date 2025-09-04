@@ -72,13 +72,13 @@ The action will now:
     allowed-types: feat,fix,docs,chore
 ```
 
-### Enable Success Comments
+### Enable Strict Mode
 
 ```yaml
 - name: Enforce Conventional Commits
   uses: your-username/github-conventional-commit-enforcer@v1
   with:
-    comment-on-success: true
+    strict-mode: true
 ```
 
 ### Use Different Target Branch

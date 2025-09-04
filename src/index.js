@@ -1,6 +1,5 @@
-const core = require("@actions/core");
-const github = require("@actions/github");
-const conventionalCommitsParser = require("conventional-commits-parser");
+import * as core from "@actions/core";
+import * as github from "@actions/github";
 
 async function run() {
   try {
@@ -10,7 +9,6 @@ async function run() {
     const allowedTypes =
       core.getInput("allowed-types") ||
       "feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert";
-    const commentOnSuccess = core.getInput("comment-on-success") === "true";
 
     const allowedTypesArray = allowedTypes
       .split(",")
@@ -22,13 +20,7 @@ async function run() {
 
     // Only validate PRs targeting the protected branch
     if (context.eventName === "pull_request") {
-      await validatePRTitle(
-        octokit,
-        context,
-        targetBranch,
-        allowedTypesArray,
-        commentOnSuccess
-      );
+      await validatePRTitle(octokit, context, targetBranch, allowedTypesArray);
     } else {
       core.info(
         `Event ${context.eventName} not supported. This action only works on pull requests.`
@@ -40,13 +32,7 @@ async function run() {
   }
 }
 
-async function validatePRTitle(
-  octokit,
-  context,
-  targetBranch,
-  allowedTypes,
-  commentOnSuccess
-) {
+async function validatePRTitle(octokit, context, targetBranch, allowedTypes) {
   // Get PR information
   const { data: pr } = await octokit.rest.pulls.get({
     owner: context.repo.owner,
@@ -65,11 +51,15 @@ async function validatePRTitle(
   const prTitle = pr.title;
   core.info(`Validating PR title: "${prTitle}"`);
 
-  // Parse the PR title as a conventional commit
-  const parsed = conventionalCommitsParser.sync(prTitle);
+  // Parse the PR title as a conventional commit using regex
+  // Format: type(scope): description or type: description
+  // Handle multi-line titles by taking only the first line
+  const firstLine = prTitle.split("\n")[0];
+  const conventionalCommitRegex =
+    /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?:\s+(.+)$/i;
+  const match = firstLine.match(conventionalCommitRegex);
 
-  // Check if it's a conventional commit
-  if (!parsed.type || !parsed.subject) {
+  if (!match) {
     core.setOutput("valid", "false");
     core.setOutput(
       "invalid-commits",
@@ -81,51 +71,35 @@ async function validatePRTitle(
       ])
     );
 
-    // Create PR comment
-    const commentBody = createPRTitleFailureComment(prTitle, allowedTypes);
-    await octokit.rest.issues.createComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: context.issue.number,
-      body: commentBody,
-    });
-
     core.setFailed(
       `PR title "${prTitle}" does not follow conventional commit format!`
     );
     return;
   }
 
+  // Extract components from regex match
+  const originalType = match[1]; // Keep original case for error messages
+  const type = originalType.toLowerCase(); // Normalize to lowercase for comparison
+  const scope = match[2] ? match[2].slice(1, -1) : null; // Remove parentheses
+  const subject = match[4];
+
   // Check if type is allowed
-  if (!allowedTypes.includes(parsed.type)) {
+  if (!allowedTypes.includes(type)) {
     core.setOutput("valid", "false");
     core.setOutput(
       "invalid-commits",
       JSON.stringify([
         {
           title: prTitle,
-          reason: `Type '${
-            parsed.type
-          }' is not allowed. Allowed types: ${allowedTypes.join(", ")}`,
+          reason: `Type '${originalType}' is not allowed. Allowed types: ${allowedTypes.join(
+            ", "
+          )}`,
         },
       ])
     );
 
-    // Create PR comment
-    const commentBody = createPRTitleFailureComment(
-      prTitle,
-      allowedTypes,
-      `Type '${parsed.type}' is not allowed`
-    );
-    await octokit.rest.issues.createComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: context.issue.number,
-      body: commentBody,
-    });
-
     core.setFailed(
-      `PR title "${prTitle}" uses disallowed type '${parsed.type}'!`
+      `PR title "${prTitle}" uses disallowed type '${originalType}'!`
     );
     return;
   }
@@ -134,76 +108,14 @@ async function validatePRTitle(
   core.setOutput("valid", "true");
   core.setOutput("total-commits", "1");
   core.info(
-    `✅ PR title follows conventional commit format: ${parsed.type}${
-      parsed.scope ? `(${parsed.scope})` : ""
-    }: ${parsed.subject}`
+    `✅ PR title follows conventional commit format: ${type}${
+      scope ? `(${scope})` : ""
+    }: ${subject}`
   );
-
-  // Create success comment if requested
-  if (commentOnSuccess) {
-    const commentBody = createPRTitleSuccessComment(
-      prTitle,
-      parsed,
-      allowedTypes
-    );
-    await octokit.rest.issues.createComment({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: context.issue.number,
-      body: commentBody,
-    });
-  }
 }
 
-function createPRTitleFailureComment(
-  prTitle,
-  allowedTypes,
-  specificReason = null
-) {
-  const reason =
-    specificReason || "PR title does not follow conventional commit format";
-
-  return `## ❌ Conventional Commit Required
-
-Your PR title **"${prTitle}"** ${reason.toLowerCase()}.
-
-### Conventional Commit Format
-PR titles must follow this pattern:
-\`\`\`
-type(scope): description
-\`\`\`
-
-**Allowed Types:** ${allowedTypes.join(", ")}
-
-**Examples:**
-- \`feat: add user authentication\`
-- \`fix(auth): resolve login validation issue\`
-- \`docs: update API documentation\`
-- \`chore: update dependencies\`
-
-### How to Fix
-1. **Edit your PR title** to follow the conventional commit format
-2. **Use Squash and Merge** when merging (this will use your PR title as the commit message)
-3. **Ensure branch protection** requires "Conventional Commits Check" status check
-
-The PR title will become the commit message when you squash merge! 🎯`;
-}
-
-function createPRTitleSuccessComment(prTitle, parsed, allowedTypes) {
-  const scope = parsed.scope ? `(${parsed.scope})` : "";
-
-  return `## ✅ Conventional Commit Validated
-
-Your PR title **"${prTitle}"** follows the conventional commit format perfectly!
-
-**Parsed as:** \`${parsed.type}${scope}: ${parsed.subject}\`
-
-**Allowed Types:** ${allowedTypes.join(", ")}
-
-When you **Squash and Merge** this PR, the commit message will be: \`${prTitle}\`
-
-Great job maintaining clean commit history! 🎉`;
-}
+// Export the run function for testing
+export { run };
 
 // Run the action
 run();

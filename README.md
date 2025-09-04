@@ -6,7 +6,7 @@ A GitHub Action that enforces conventional commit format on PR titles for squash
 
 - ✅ Validates PR titles as conventional commits
 - 🚫 Blocks merges with non-conventional PR titles
-- 💬 Provides helpful feedback on PR comments
+- ✅ Provides clear validation feedback through status checks
 - 🔧 Easy to configure and customize
 - 📝 Supports all conventional commit types
 - 🎯 Simple approach: PR title → commit message
@@ -19,7 +19,7 @@ The action uses a **simple and effective approach**:
 2. **Action validates PR title** as a conventional commit
 3. **If PR title is invalid:**
    - ❌ Action fails and blocks the merge
-   - 💬 Comments on PR with helpful feedback
+   - ✅ Provides clear status check feedback
 4. **If PR title is valid:**
    - ✅ Action passes and allows the merge
 5. **When merging:**
@@ -100,7 +100,6 @@ jobs:
           base-branch: main
           allowed-types: feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert
           strict-mode: false
-          comment-on-success: true
 ```
 
 ### Option 2: Self-Hosted Action
@@ -127,13 +126,12 @@ To actually enforce conventional commits, you MUST set up branch protection:
 
 ## Action Inputs
 
-| Input                | Description                                     | Required | Default                                                        |
-| -------------------- | ----------------------------------------------- | -------- | -------------------------------------------------------------- |
-| `token`              | GitHub token for API access                     | Yes      | `${{ github.token }}`                                          |
-| `target-branch`      | Target branch to protect                        | No       | `main`                                                         |
-| `allowed-types`      | Comma-separated list of allowed commit types    | No       | `feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert` |
-| `strict-mode`        | Enable strict mode for more rigorous validation | No       | `false`                                                        |
-| `comment-on-success` | Comment on PR even when validation passes       | No       | `false`                                                        |
+| Input           | Description                                     | Required | Default                                                        |
+| --------------- | ----------------------------------------------- | -------- | -------------------------------------------------------------- |
+| `token`         | GitHub token for API access                     | Yes      | `${{ github.token }}`                                          |
+| `target-branch` | Target branch to protect                        | No       | `main`                                                         |
+| `allowed-types` | Comma-separated list of allowed commit types    | No       | `feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert` |
+| `strict-mode`   | Enable strict mode for more rigorous validation | No       | `false`                                                        |
 
 ## Action Outputs
 
@@ -162,7 +160,7 @@ The workflow can be customized by:
 
 - Changing the target branch to protect
 - Enabling strict mode for more rigorous validation
-- Controlling when comments are posted
+- Configuring validation behavior
 - Using action outputs in subsequent steps
 
 ## Troubleshooting
