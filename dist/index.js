@@ -32401,15 +32401,15 @@ async function validateMergeCommits(
   allowedTypes,
   commentOnSuccess
 ) {
-  // Get the latest commits pushed to the target branch
-  const { data: commits } = await octokit.rest.repos.listCommits({
+  // Get the commits that were just pushed (not all commits on the branch)
+  const { data: commits } = await octokit.rest.repos.compareCommits({
     owner: context.repo.owner,
     repo: context.repo.repo,
-    sha: context.sha,
-    per_page: 10, // Check last 10 commits
+    base: context.payload.before,
+    head: context.sha,
   });
 
-  if (commits.length === 0) {
+  if (!commits.commits || commits.commits.length === 0) {
     core.info("No commits to validate");
     core.setOutput("valid", "true");
     core.setOutput("total-commits", "0");
@@ -32421,7 +32421,7 @@ async function validateMergeCommits(
   const validCommits = [];
 
   // Validate each commit
-  for (const commit of commits) {
+  for (const commit of commits.commits) {
     const message = commit.commit.message;
     const parsed = conventionalCommitsParser(message);
 
@@ -32474,7 +32474,7 @@ async function validateMergeCommits(
 
   // Set outputs
   core.setOutput("valid", (!hasInvalidCommits).toString());
-  core.setOutput("total-commits", commits.length.toString());
+  core.setOutput("total-commits", commits.commits.length.toString());
   core.setOutput("invalid-commits", JSON.stringify(invalidCommits));
 
   if (hasInvalidCommits) {
