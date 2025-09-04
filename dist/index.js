@@ -32423,7 +32423,7 @@ async function validateMergeCommits(
   // Validate each commit
   for (const commit of commits.commits) {
     const message = commit.commit.message;
-    const parsed = conventionalCommitsParser(message);
+    const parsed = conventionalCommitsParser.sync(message);
 
     // Check if it's a conventional commit
     if (!parsed.type || !parsed.subject) {
@@ -32529,7 +32529,7 @@ async function validatePRMergeCommit(
   // Validate each commit
   for (const commit of commits) {
     const message = commit.commit.message;
-    const parsed = conventionalCommitsParser(message);
+    const parsed = conventionalCommitsParser.sync(message);
 
     // Check if it's a conventional commit
     if (!parsed.type || !parsed.subject) {
